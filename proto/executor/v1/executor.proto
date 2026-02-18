@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package executor.v1;
+
+option go_package = "github.com/lzjever/mbos-wvs/gen/go/executor/v1;executorv1";
+
+service ExecutorService {
+  rpc ExecuteTask(ExecuteTaskRequest) returns (ExecuteTaskResponse);
+}
+
+enum TaskOp {
+  TASK_OP_UNSPECIFIED = 0;
+  TASK_OP_INIT_WORKSPACE = 1;
+  TASK_OP_SNAPSHOT_CREATE = 2;
+  TASK_OP_SNAPSHOT_DROP = 3;
+  TASK_OP_SET_CURRENT = 4;
+}
+
+message ExecuteTaskRequest {
+  string task_id = 1;
+  string wsid = 2;
+  TaskOp op = 3;
+  // Params vary by op:
+  // INIT_WORKSPACE: owner
+  // SNAPSHOT_CREATE: snapshot_id, message
+  // SNAPSHOT_DROP: snapshot_id
+  // SET_CURRENT: snapshot_id, new_live_id
+  map<string, string> params = 4;
+}
+
+message ExecuteTaskResponse {
+  bool success = 1;
+  bool noop = 2;
+  string error_code = 3;
+  string error_message = 4;
+  // Results vary by op:
+  // SNAPSHOT_CREATE: snapshot_id, fs_path
+  // SET_CURRENT: current_path
+  map<string, string> results = 5;
+}
