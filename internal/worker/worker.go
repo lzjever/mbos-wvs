@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 
@@ -110,10 +111,10 @@ func (w *Worker) executeWithLock(ctx context.Context, task *store.WvsTask, log *
 		_ = json.Unmarshal(task.Params, &params)
 		snapshotID := params["snapshot_id"]
 
-		// Re-check references within lock - pass snapshotID as []byte for the SQL comparison
+		// Re-check references within lock
 		referenced, err := qtx.IsSnapshotReferencedByTasks(ctx, store.IsSnapshotReferencedByTasksParams{
-			Wsid:   task.Wsid,
-			Params: []byte(snapshotID),
+			Wsid:       task.Wsid,
+			SnapshotID: pgtype.Text{String: snapshotID, Valid: true},
 		})
 		if err != nil || referenced {
 			w.failTask(ctx, task, fmt.Errorf("snapshot still referenced"), log)

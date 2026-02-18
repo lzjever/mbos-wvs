@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -18,15 +16,14 @@ services:
       retries: 5
 
   wvs-migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile.api
-    command: >
-      sh -c "
-        apk add --no-cache curl &&
-        curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz -C /usr/local/bin/ &&
-        migrate -path /migrations -database 'postgres://wvs:wvs_pass@postgres:5432/wvs?sslmode=disable' up
-      "
+    image: migrate/migrate:v4.17.0
+    volumes:
+      - ./migrations:/migrations
+    entrypoint: []
+    command:
+      - sh
+      - -c
+      - "migrate -path /migrations -database 'postgres://wvs:wvs_pass@postgres:5432/wvs?sslmode=disable' up || true"
     depends_on:
       postgres:
         condition: service_healthy
@@ -118,11 +115,13 @@ services:
     volumes:
       - ./configs/vmagent/prometheus.yml:/etc/prometheus/prometheus.yml
     command:
-      - "--prometheus-config=/etc/prometheus/prometheus.yml"
+      - "-promscrape.config=/etc/prometheus/prometheus.yml"
+      - "-remoteWrite.url=http://vmsingle:8428/api/v1/write"
     depends_on:
       - wvs-api
       - wvs-worker
       - executor
+      - vmsingle
 
   vmsingle:
     image: victoriametrics/victoria-metrics:latest

@@ -22,5 +22,6 @@ SELECT EXISTS(
   WHERE wsid = $1
     AND status IN ('PENDING', 'RUNNING', 'FAILED')
     AND attempt < max_attempts
-    AND params->>'snapshot_id' = $2
+    AND op != 'snapshot_drop'
+    AND params->>'snapshot_id' = sqlc.narg('snapshot_id')::text
 ) AS referenced;

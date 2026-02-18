@@ -67,17 +67,18 @@ SELECT EXISTS(
   WHERE wsid = $1
     AND status IN ('PENDING', 'RUNNING', 'FAILED')
     AND attempt < max_attempts
-    AND params->>'snapshot_id' = $2
+    AND op != 'snapshot_drop'
+    AND params->>'snapshot_id' = $2::text
 ) AS referenced
 `
 
 type IsSnapshotReferencedByTasksParams struct {
-	Wsid   string `json:"wsid"`
-	Params []byte `json:"params"`
+	Wsid       string      `json:"wsid"`
+	SnapshotID pgtype.Text `json:"snapshot_id"`
 }
 
 func (q *Queries) IsSnapshotReferencedByTasks(ctx context.Context, arg IsSnapshotReferencedByTasksParams) (bool, error) {
-	row := q.db.QueryRow(ctx, isSnapshotReferencedByTasks, arg.Wsid, arg.Params)
+	row := q.db.QueryRow(ctx, isSnapshotReferencedByTasks, arg.Wsid, arg.SnapshotID)
 	var referenced bool
 	err := row.Scan(&referenced)
 	return referenced, err

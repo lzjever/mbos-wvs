@@ -14,6 +14,3 @@ scrape_configs:
   - job_name: juicefs-mount
     static_configs:
       - targets: ["executor:9567"]
-
-remote_write:
-  - url: "http://vmsingle:8428/api/v1/write"

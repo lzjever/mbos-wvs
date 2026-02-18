@@ -28,12 +28,33 @@ type ControlFile struct {
 
 // Quiesce writes REQUEST_FREEZE to control.json and polls for FROZEN ack.
 // Returns nil on success. On timeout, writes REQUEST_RESUME and returns error.
+// If no guest workload is running (control.json didn't exist, FROZEN, or REQUEST_RESUME), auto-succeeds.
 func Quiesce(ctx context.Context, wsRoot string, taskID string, timeout time.Duration, log *zap.Logger) error {
 	controlPath := filepath.Join(wsRoot, ".wvs", "control.json")
+
+	// Check if control file already exists and its current state
+	existingState := QuiesceState("")
+	if data, err := os.ReadFile(controlPath); err == nil {
+		var cf ControlFile
+		if err := json.Unmarshal(data, &cf); err == nil {
+			existingState = cf.State
+		}
+	}
 
 	// Ensure .wvs directory exists
 	if err := os.MkdirAll(filepath.Dir(controlPath), 0755); err != nil {
 		return fmt.Errorf("mkdir .wvs: %w", err)
+	}
+
+	// If no prior control file existed, or state is FROZEN/REQUEST_RESUME (no active guest),
+	// there's no active guest workload - auto-succeed
+	if existingState == "" || existingState == QuiesceFrozen || existingState == QuiesceRequestResume {
+		log.Info("quiesce: no guest workload detected, auto-succeeding")
+		// Write FROZEN state directly to indicate ready for snapshot
+		if err := writeControl(controlPath, QuiesceFrozen, taskID); err != nil {
+			return fmt.Errorf("write FROZEN: %w", err)
+		}
+		return nil
 	}
 
 	// Write REQUEST_FREEZE

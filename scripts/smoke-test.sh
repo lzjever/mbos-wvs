@@ -95,7 +95,7 @@ pass "Workspace is ACTIVE"
 info "Creating snapshot..."
 IDEMPOTENCY_KEY="snap-$(uuidgen | tr '[:upper:]' '[:lower:]')"
 RESP=$(post "/v1/workspaces/$WSID/snapshots" '{"message":"smoke test snapshot"}' "$IDEMPOTENCY_KEY")
-TASK_ID=$(echo "$RESP" | jq -r '.task_id")
+TASK_ID=$(echo "$RESP" | jq -r '.task_id')
 [ "$TASK_ID" != "null" ] || fail "Failed to create snapshot task: $RESP"
 pass "Snapshot creation task created: $TASK_ID"
 
@@ -123,7 +123,7 @@ pass "Current snapshot: ${CURRENT_SNAP:0:8}..."
 info "Creating second snapshot for rollback test..."
 IDEMPOTENCY_KEY2="snap2-$(uuidgen | tr '[:upper:]' '[:lower:]')"
 RESP=$(post "/v1/workspaces/$WSID/snapshots" '{"message":"second snapshot"}' "$IDEMPOTENCY_KEY2")
-TASK_ID=$(echo "$RESP" | jq -r '.task_id")
+TASK_ID=$(echo "$RESP" | jq -r '.task_id')
 wait_for_task "$TASK_ID" 120
 SNAPSHOTS=$(get "/v1/workspaces/$WSID/snapshots")
 SECOND_SNAP=$(echo "$SNAPSHOTS" | jq -r '.snapshots[0].snapshot_id')
@@ -132,7 +132,7 @@ pass "Second snapshot created: ${SECOND_SNAP:0:8}..."
 # Set current (rollback)
 info "Setting current to first snapshot (rollback)..."
 RESP=$(post "/v1/workspaces/$WSID/current:set" "{\"snapshot_id\":\"$SNAPSHOT_ID\"}")
-TASK_ID=$(echo "$RESP" | jq -r '.task_id")
+TASK_ID=$(echo "$RESP" | jq -r '.task_id')
 [ "$TASK_ID" != "null" ] || fail "Failed to set current: $RESP"
 wait_for_task "$TASK_ID" 120
 pass "Rollback completed"
@@ -146,7 +146,7 @@ pass "Current snapshot verified"
 # Drop snapshot (the second one, not current)
 info "Dropping second snapshot..."
 RESP=$(delete "/v1/workspaces/$WSID/snapshots/$SECOND_SNAP" "drop-$SECOND_SNAP")
-TASK_ID=$(echo "$RESP" | jq -r '.task_id")
+TASK_ID=$(echo "$RESP" | jq -r '.task_id')
 [ "$TASK_ID" != "null" ] || fail "Failed to drop snapshot: $RESP"
 wait_for_task "$TASK_ID" 120
 pass "Snapshot dropped"
