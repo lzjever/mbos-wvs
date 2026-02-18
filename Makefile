@@ -23,11 +23,11 @@ docker:                      ## Build Docker images
 	docker build -t yourorg/wvs-executor -f Dockerfile.executor .
 
 up:                          ## Start demo environment
-	docker compose up -d
+	docker-compose up -d
 
 down:                        ## Stop demo environment
-	docker compose down -v
+	docker-compose down -v
 
 smoke-test:                  ## End-to-end smoke test
-	docker compose up -d --wait
+	docker-compose up -d
 	bash scripts/smoke-test.sh
