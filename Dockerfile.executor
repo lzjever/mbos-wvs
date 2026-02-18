@@ -1,0 +1,15 @@
+FROM golang:1.22-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o /bin/wvs-executor ./cmd/wvs-executor
+
+FROM ubuntu:22.04
+RUN apt-get update && apt-get install -y fuse3 curl && rm -rf /var/lib/apt/lists/*
+# Install JuiceFS
+RUN curl -sSL https://d.juicefs.com/install | sh -
+COPY --from=build /bin/wvs-executor /usr/local/bin/wvs-executor
+COPY scripts/executor-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

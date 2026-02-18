@@ -1,0 +1,149 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: wvs
+      POSTGRES_PASSWORD: wvs_pass
+      POSTGRES_DB: wvs
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wvs"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  wvs-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: >
+      sh -c "
+        apk add --no-cache curl &&
+        curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz -C /usr/local/bin/ &&
+        migrate -path /migrations -database 'postgres://wvs:wvs_pass@postgres:5432/wvs?sslmode=disable' up
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - miniodata:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save 60 1
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6379:6379"
+
+  wvs-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      WVS_HTTP_ADDR: "0.0.0.0:8080"
+      WVS_DB_DSN: "postgres://wvs:wvs_pass@postgres:5432/wvs?sslmode=disable"
+      WVS_METRICS_ADDR: "0.0.0.0:9090"
+      WVS_LOG_LEVEL: info
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    depends_on:
+      wvs-migrate:
+        condition: service_completed_successfully
+
+  wvs-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      WVS_DB_DSN: "postgres://wvs:wvs_pass@postgres:5432/wvs?sslmode=disable"
+      EXECUTOR_ADDRS: "executor:7070"
+      WVS_METRICS_ADDR: "0.0.0.0:9091"
+      WVS_LOG_LEVEL: info
+    ports:
+      - "9091:9091"
+    depends_on:
+      wvs-migrate:
+        condition: service_completed_successfully
+      executor:
+        condition: service_started
+
+  executor:
+    build:
+      context: .
+      dockerfile: Dockerfile.executor
+    privileged: true
+    environment:
+      EXECUTOR_MOUNT_PATH: "/ws"
+      EXECUTOR_GRPC_ADDR: "0.0.0.0:7070"
+      EXECUTOR_METRICS_ADDR: "0.0.0.0:9092"
+      EXECUTOR_QUIESCE_TIMEOUT: "30s"
+      JFS_META_URL: "redis://redis:6379/0"
+      MINIO_ENDPOINT: "http://minio:9000"
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: jfs-data
+    ports:
+      - "7070:7070"
+      - "9092:9092"
+    depends_on:
+      redis:
+        condition: service_started
+      minio:
+        condition: service_healthy
+
+  vmagent:
+    image: victoriametrics/vmagent:latest
+    volumes:
+      - ./configs/vmagent/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - "--prometheus-config=/etc/prometheus/prometheus.yml"
+    depends_on:
+      - wvs-api
+      - wvs-worker
+      - executor
+
+  vmsingle:
+    image: victoriametrics/victoria-metrics:latest
+    ports:
+      - "8428:8428"
+    volumes:
+      - vmdata:/victoria-metrics-data
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./configs/grafana/provisioning:/etc/grafana/provisioning
+      - grafanadata:/var/lib/grafana
+
+volumes:
+  pgdata:
+  miniodata:
+  redisdata:
+  vmdata:
+  grafanadata:

@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: wvs-api
+    static_configs:
+      - targets: ["wvs-api:9090"]
+  - job_name: wvs-worker
+    static_configs:
+      - targets: ["wvs-worker:9091"]
+  - job_name: wvs-executor
+    static_configs:
+      - targets: ["executor:9092"]
+  - job_name: juicefs-mount
+    static_configs:
+      - targets: ["executor:9567"]
+
+remote_write:
+  - url: "http://vmsingle:8428/api/v1/write"
